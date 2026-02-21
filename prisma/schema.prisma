@@ -1,0 +1,116 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  ORGANIZER
+  PARTICIPANT
+}
+
+enum RegistrationStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+}
+
+model User {
+  id              String         @id @default(cuid())
+  email           String         @unique
+  name            String
+  role            Role           @default(PARTICIPANT)
+  referrals       Referral[]
+  registrations   Registration[]
+  eventsCreated   Event[]        @relation("EventCreatedBy")
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+}
+
+model Event {
+  id              String          @id @default(cuid())
+  slug            String          @unique
+  title           String
+  description     String
+  category        String
+  difficulty      String
+  startAt         DateTime
+  endAt           DateTime
+  capacity        Int
+  priceInr        Int
+  organizerId     String
+  organizer       User            @relation("EventCreatedBy", fields: [organizerId], references: [id])
+  registrations   Registration[]
+  coupons         Coupon[]
+  leaderboardRows LeaderboardRow[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+}
+
+model Registration {
+  id              String             @id @default(cuid())
+  userId          String
+  eventId         String
+  status          RegistrationStatus @default(PENDING)
+  ticketQr        String?
+  paidAmountInr   Int
+  user            User               @relation(fields: [userId], references: [id])
+  event           Event              @relation(fields: [eventId], references: [id])
+  payment         Payment?
+  certificate     Certificate?
+  createdAt       DateTime           @default(now())
+
+  @@unique([userId, eventId])
+}
+
+model Payment {
+  id                String        @id @default(cuid())
+  registrationId    String        @unique
+  provider          String
+  providerTxnId     String        @unique
+  amountInr         Int
+  status            String
+  registration      Registration  @relation(fields: [registrationId], references: [id])
+  createdAt         DateTime      @default(now())
+}
+
+model Certificate {
+  id                String         @id @default(cuid())
+  registrationId    String         @unique
+  url               String
+  issuedAt          DateTime       @default(now())
+  registration      Registration   @relation(fields: [registrationId], references: [id])
+}
+
+model LeaderboardRow {
+  id                String       @id @default(cuid())
+  eventId           String
+  teamName          String
+  score             Int
+  rank              Int
+  event             Event        @relation(fields: [eventId], references: [id])
+
+  @@index([eventId, rank])
+}
+
+model Coupon {
+  id                String      @id @default(cuid())
+  code              String      @unique
+  eventId           String
+  discountPct       Int
+  maxRedemptions    Int
+  redeemedCount     Int         @default(0)
+  event             Event       @relation(fields: [eventId], references: [id])
+}
+
+model Referral {
+  id                String      @id @default(cuid())
+  userId            String
+  code              String      @unique
+  conversions       Int         @default(0)
+  user              User        @relation(fields: [userId], references: [id])
+}
